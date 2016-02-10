@@ -1,0 +1,106 @@
+#!/bin/bash
+#
+# \file watorscript
+# \author Giorgio Vinciguerra
+# \date Maggio 2015
+# \copyright Copyright (c) 2015 Giorgio Vinciguerra. All rights reserved.
+# \note Si dichiara che il contenuto di questo file è in ogni sua parte opera originale dell' autore.
+# \brief Script per la validazione di un file di un pianeta Wator, conteggio dei pesci e squali.
+
+function ECHO_HELP {
+  >&2 echo "usage: watorscript [-sf] file"
+  >&2 echo "       Esamina un file di un pianeta wator. Se -s è specificata restituisce il"
+  >&2 echo "       numero di squali nel pianeta. Se -f è specificata restituisce il numero"
+  >&2 echo "       di pesci nel pianeta. Se nessuna opzione è specificata controlla soltanto"
+  >&2 echo "       se il formato del file è corretto."
+}
+
+# Controllo delle opzioni
+if [[ $# -gt 2 ]]; then
+  echo "watorscript: troppi parametri forniti" >&2
+  ECHO_HELP
+  exit 1
+fi
+
+for arg in "$@"; do
+  case "$arg" in
+    -s)
+      countSharks=true
+      ;;
+    -f)
+      countFishes=true
+      ;;
+    -*)
+      echo "watorscript: opzione sconosciuta -$OPTARG" >&2
+      ECHO_HELP
+      exit 1
+      ;;
+    *)
+      file=$arg
+      ;;
+  esac
+done
+
+# Controllo dell'esistenza del file di input
+if [[ -z $file ]]; then
+  echo "watorscript: nessun file di input" >&2
+  exit 1
+elif ! [[ -r $file ]]; then # todo non è mai true
+  echo "watorscript: $file non esiste o non si hanno i permessi per leggerlo" >&2
+  exit 1
+fi
+
+# Inizio della validazione
+exec 4<"$file"
+read rows<&4
+read cols<&4
+if ! [[ $rows =~ ^[0-9]+$ && $cols =~ ^[0-9]+$ ]]; then # Sono interi positivi?
+  echo "NO" >&2
+  exit 1
+fi
+
+# Funzione per l'aggiornamento dei contatori, usata durante la validazione
+fishesCount=0
+sharksCount=0
+function UPDATE_COUNTERS {
+  case $1 in
+    "S"|"S ") ((sharksCount++));;
+    "F"|"F ") ((fishesCount++));;
+  esac
+}
+
+IFS='' # Imposta l'Internal Field Separator di bash così la read non rimuoverà gli spazi
+currentRow=1
+currentCol=1
+while read -r -n 2 c; do
+  case $c in
+    "S "|"F "|"W ") # Caratteri all'interno della matrice
+      ((currentCol++))
+      UPDATE_COUNTERS $c
+      ;;
+    "S"|"F"|"W") # Caratteri a fine colonna (quindi seguiti da una newline)
+      if (( currentCol > cols || currentRow > rows )); then echo "NO" >&2 ; exit 1; fi
+      ((currentRow++))
+      currentCol=1
+      UPDATE_COUNTERS $c
+      ;;
+    *) # Caratteri non riconosciuti
+      echo "NO" >&2
+      exit 1
+      ;;
+  esac
+done <&4
+((currentRow--))
+
+if (( currentRow != rows )); then
+  echo "NO" >&2
+  exit 1
+fi
+
+if [ $countSharks ]; then
+  echo $sharksCount
+elif [ $countFishes ]; then
+  echo $fishesCount
+else
+  echo "OK" >&2
+fi

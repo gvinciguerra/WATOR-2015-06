@@ -1,0 +1,92 @@
+#!/bin/bash
+# \file   test_process.sh
+# \author Giorgio Vinciguerra
+# \date   Giugno 2015
+# \note   Si dichiara che il contenuto di questo file è in ogni sua parte opera
+#         originale dell' autore.
+# \brief  Script per il test e l'esecuzione di più simulazioni con pianeti
+#         casuali. Accetta come primo parametro il numero di simulazioni da
+#         eseguire, come secondo parametro la durata di ogni singola
+#         simulazione prima dell'invio del segnale di terminazione. Il terzo e
+#         il quarto parametro sono le dimensioni della matrice di simulazione.
+#         Al termine stampa la media del tempo di esecuzione delle simulazioni.
+
+if [ $# != 4 ]; then
+    echo "Uso del comando: $0 numIterazioni durataIterazione n m"
+    exit 1
+fi
+if ! [[ $1 =~ ^[0-9]+$ && $1 -ge 1 ]]; then
+    echo "Il numero di iterazioni deve essere un intero > 0"
+    exit 1
+fi
+if ! [[ $2 =~ ^[0-9]+$ && $2 -ge 1 ]]; then
+    echo "La durata di ogni iterazione deve essere un intero > 0"
+    exit 1
+fi
+if ! [[ $3 =~ ^[0-9]+$ && $3 -ge 10 ]]; then
+    echo "Il numero di righe deve essere un intero ≥ 10"
+    exit 1
+fi
+if ! [[ $4 =~ ^[0-9]+$ && $4 -ge 10 ]]; then
+    echo "Il numero di colonne deve essere un intero ≥ 10"
+    exit 1
+fi
+
+# configurazione
+export FILE_IN=tmpplan.txt
+export FILE_OUT=tmpdump.txt
+export FILE_STATS=tmpstats.txt
+
+
+stty -ctlecho # Non stampa ^C
+set -e
+function beforeExit {
+    echo -e "Terminazione"
+    if pkill wator &> /dev/null ; then
+        killall -9 wator visualizer &> /dev/null
+    fi
+    if (( i > 1 )); then
+        python -c "data=[float(l.rstrip('\n')) for l in open('$FILE_STATS')]; avrg=(float(sum(data))/len(data)); print 'Tempo medio reale = {0:.5f}s'.format(avrg)"
+    fi
+    rm -f $FILE_IN $FILE_OUT $FILE_STATS wator.check wator visualizer wator_worker_*
+}
+trap beforeExit EXIT
+
+
+echo -n "Compilazione... "
+if ! make -s -C ../ all 2> /dev/null; then
+    echo "Errore nella compilazione"
+    exit 1
+fi
+if ! cp -f ../wator ./wator; then
+    echo "Errore nella copia dell'eseguible wator"
+    exit 1
+fi
+
+if ! cp -f ../visualizer ./visualizer; then
+    echo "Errore nella copia dell'eseguible visualizer"
+    exit 1
+fi
+
+echo "Avvio test..."
+rm -f $FILE_STATS
+for ((i=1; i<=$1; i++)); do
+    echo -en "\rIterazione $i di $1: Generazione pianeta...                         "
+
+    # Generazione di un pianeta casuale
+    (( arg1 = RANDOM % 5 + 1 ))
+    (( arg2 = RANDOM % 5 + 1 ))
+    ./planet_generator $3 $4 $arg1 $arg2 > tmpplan.txt
+
+    # Avvio del programma
+    echo -en "\rIterazione $i di $1: Generazione pianeta... Simulazione in corso... "
+    { TIMEFORMAT='%3R';time ./wator $FILE_IN -f $FILE_OUT &> /dev/null & } 2>> $FILE_STATS
+    sleep $2
+
+    # Terminazione
+	if ! pkill -TERM wator &> /dev/null ; then
+        echo "C'è stato un problema con l'invio del segnale (iterazione $i)"
+	    exit 1
+	fi
+    wait
+done

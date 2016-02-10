@@ -1,0 +1,59 @@
+#!/bin/bash
+# \file   planetgenerator.sh
+# \author Giorgio Vinciguerra
+# \date   Giugno 2015
+# \note   Si dichiara che il contenuto di questo file è in ogni sua parte opera originale dell' autore.
+# \brief  Script per la generazione di una matrice di un pianeta
+
+
+
+if [ $# != 4 ]; then
+    echo "Uso del comando: $0 righe colonne sharkden fishden"
+    echo "    I primi due argomenti indicano le dimensioni della matrice. Il terzo e il"
+    echo "    quarto sono numeri da 0 a 5 che indicano rispettivamente la densità degli"
+    echo "    squali e dei pesci. Se la somma delle densità è ≥ 10 nel pianeta non ci"
+    echo "    sarà acqua."
+    exit 1
+fi
+if ! [[ $1 =~ ^[0-9]+$ && $2 =~ ^[0-9]+$ ]]; then
+    echo "Le dimensioni della matrice non sono valide"
+    exit 1
+fi
+if ! [[ $3 =~ ^[0-9]+$ && $3 -ge 0 && $3 -le 5 ]]; then
+    echo "La densità degli squali non è un numero da 0 a 5"
+    exit 1
+fi
+if ! [[ $4 =~ ^[0-9]+$ && $4 -ge 0 && $4 -le 5 ]]; then
+    echo "La densità dei pesci non è un numero da 0 a 5"
+    exit 1
+fi
+
+waterDens=10-$3-$4
+if (( $waterDens < 0 )); then
+    waterDens=0
+fi
+
+(( size=$3+$4+waterDens ))
+
+echo $1
+echo $2
+for (( r = 0; r < $1; r++ )); do
+    for (( c = 0; c < $2 - 1; c++ )); do
+        (( randomIndex=RANDOM % size ))
+        if (( randomIndex < waterDens )); then
+            echo -n "W "
+        elif (( randomIndex < waterDens + $3 )); then
+            echo -n "S "
+        else
+            echo -n "F "
+        fi
+    done
+    (( randomIndex=RANDOM % size ))
+    if (( randomIndex < waterDens )); then
+        echo "W"
+    elif (( randomIndex < waterDens + $3 )); then
+        echo "S"
+    else
+        echo "F"
+    fi
+done
